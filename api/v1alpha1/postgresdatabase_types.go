@@ -1,58 +1,86 @@
-/*
-Copyright 2026.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
+// Package v1alpha1 contains API Schema definitions for the postgres v1alpha1 API group
+// +kubebuilder:object:generate=true
+// +groupName=postgres.example.com
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // PostgresDatabaseSpec defines the desired state of PostgresDatabase.
 type PostgresDatabaseSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:MinLength=1
+	DatabaseName string `json:"databaseName"`
 
-	// Foo is an example field of PostgresDatabase. Edit postgresdatabase_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// +kubebuilder:default="16.2"
+	Version string `json:"version,omitempty"`
+
+	// +kubebuilder:validation:Required
+	Storage StorageSpec `json:"storage"`
+
+	// +kubebuilder:default=1
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=5
+	Replicas int32 `json:"replicas,omitempty"`
+
+	Resources         ResourceSpec `json:"resources,omitempty"`
+	BackupSchedule    string       `json:"backupSchedule,omitempty"`
+	MaintenanceWindow string       `json:"maintenanceWindow,omitempty"`
 }
 
-// PostgresDatabaseStatus defines the observed state of PostgresDatabase.
+type StorageSpec struct {
+	// +kubebuilder:default="10Gi"
+	Size resource.Quantity `json:"size"`
+	// +kubebuilder:default="gp3"
+	StorageClass string `json:"storageClass,omitempty"`
+}
+
+type ResourceSpec struct {
+	// +kubebuilder:default="500m"
+	CPURequest string `json:"cpuRequest,omitempty"`
+	// +kubebuilder:default="1"
+	CPULimit string `json:"cpuLimit,omitempty"`
+	// +kubebuilder:default="512Mi"
+	MemRequest string `json:"memRequest,omitempty"`
+	// +kubebuilder:default="1Gi"
+	MemLimit string `json:"memLimit,omitempty"`
+}
+
+type DatabasePhase string
+
+const (
+	PhaseProvisioning DatabasePhase = "Provisioning"
+	PhaseReady        DatabasePhase = "Ready"
+	PhaseFailed       DatabasePhase = "Failed"
+	PhaseDeleting     DatabasePhase = "Deleting"
+)
+
 type PostgresDatabaseStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// +kubebuilder:validation:Enum=Provisioning;Ready;Failed;Deleting
+	Phase               DatabasePhase      `json:"phase,omitempty"`
+	Conditions          []metav1.Condition `json:"conditions,omitempty"`
+	ConnectionSecretRef string             `json:"connectionSecretRef,omitempty"`
+	ObservedGeneration  int64              `json:"observedGeneration,omitempty"`
+	ReadyReplicas       int32              `json:"readyReplicas,omitempty"`
 }
-
-// +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
 
 // PostgresDatabase is the Schema for the postgresdatabases API.
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Database",type=string,JSONPath=".spec.databaseName"
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=".status.phase"
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=".status.readyReplicas"
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=".metadata.creationTimestamp"
 type PostgresDatabase struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-
-	Spec   PostgresDatabaseSpec   `json:"spec,omitempty"`
-	Status PostgresDatabaseStatus `json:"status,omitempty"`
+	Spec              PostgresDatabaseSpec   `json:"spec,omitempty"`
+	Status            PostgresDatabaseStatus `json:"status,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-
-// PostgresDatabaseList contains a list of PostgresDatabase.
 type PostgresDatabaseList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
