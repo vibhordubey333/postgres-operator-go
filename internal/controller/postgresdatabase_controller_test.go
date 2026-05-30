@@ -51,7 +51,9 @@ var _ = Describe("PostgresDatabase Controller", func() {
 						Name:      resourceName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: postgresv1alpha1.PostgresDatabaseSpec{
+						DatabaseName: "testdb",
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}

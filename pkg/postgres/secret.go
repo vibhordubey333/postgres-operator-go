@@ -12,12 +12,12 @@ import (
 
 // BuildSecret generates a Kubernetes Secret with random credentials.
 // Called only when the Secret does not already exist — idempotent by design.
-func BuildSecret(db *postgresv1alpha1.PostgresDatabase) *corev1.Secret {
+func BuildSecret(db *postgresv1alpha1.PostgresDatabase, sslMode string) *corev1.Secret {
 	password := generatePassword(32)
 	username := db.Spec.DatabaseName + "_user"
 	dsn := fmt.Sprintf(
-		"postgresql://%s:%s@%s-headless:5432/%s?sslmode=require",
-		username, password, db.Name, db.Spec.DatabaseName,
+		"postgresql://%s:%s@%s-headless:5432/%s?sslmode=%s",
+		username, password, db.Name, db.Spec.DatabaseName, sslMode,
 	)
 	return &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

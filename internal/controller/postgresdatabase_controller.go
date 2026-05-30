@@ -28,12 +28,13 @@ const (
 
 type PostgresDatabaseReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme    *runtime.Scheme
+	DBSSLMode string
 }
 
-// +kubebuilder:rbac:groups=postgres.example.com,resources=postgresdatabases,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=postgres.example.com,resources=postgresdatabases/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=postgres.example.com,resources=postgresdatabases/finalizers,verbs=update
+// +kubebuilder:rbac:groups=postgres.vibhordubey.com,resources=postgresdatabases,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=postgres.vibhordubey.com,resources=postgresdatabases/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=postgres.vibhordubey.com,resources=postgresdatabases/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services;persistentvolumeclaims;secrets,verbs=get;list;watch;create;update;patch;delete
 
@@ -133,7 +134,7 @@ func (r *PostgresDatabaseReconciler) reconcileSecret(
 	}
 	err := r.Get(ctx, name, secret)
 	if errors.IsNotFound(err) {
-		secret = postgres.BuildSecret(db)
+		secret = postgres.BuildSecret(db, r.DBSSLMode)
 		if setErr := controllerutil.SetControllerReference(db, secret, r.Scheme); setErr != nil {
 			return nil, setErr
 		}

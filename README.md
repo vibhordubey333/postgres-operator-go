@@ -4,6 +4,15 @@
 ## Description
 // TODO(user): An in-depth paragraph about your project and overview of use
 
+## Database SSL Mode
+
+The operator configures the `DATABASE_URL` in the generated credentials secret with an SSL mode. This is controlled by the `DATABASE_SSLMODE` environment variable on the operator deployment (defaults to `require`).
+
+For local development or clusters without Postgres TLS, you can set `DATABASE_SSLMODE=disable`.
+
+**Migration Caveat for Existing Databases:**
+The operator creates the credentials secret only once (when it is absent). If you change `DATABASE_SSLMODE`, existing secrets will **not** be updated automatically to avoid accidental password rotation. To apply the new SSL mode to an existing database, you must delete its credentials secret and let the operator recreate it, or create a fresh `PostgresDatabase` resource.
+
 ## Getting Started
 
 ### Prerequisites

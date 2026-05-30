@@ -49,8 +49,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	dbSSLMode := os.Getenv("DATABASE_SSLMODE")
+	if dbSSLMode == "" {
+		dbSSLMode = "require"
+	}
+
 	if err = (&controller.PostgresDatabaseReconciler{
-		Client: mgr.GetClient(), Scheme: mgr.GetScheme(),
+		Client:    mgr.GetClient(),
+		Scheme:    mgr.GetScheme(),
+		DBSSLMode: dbSSLMode,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller")
 		os.Exit(1)
