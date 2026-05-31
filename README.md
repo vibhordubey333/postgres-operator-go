@@ -1,4 +1,8 @@
 # postgres-operator-go
+
+[![CI](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml)
+[![Release](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml)
+
 // TODO(user): Add simple overview of use/purpose
 
 ## Description
