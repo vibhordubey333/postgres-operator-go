@@ -1,0 +1,16 @@
+{{- if and .Values.metrics.enabled .Values.metrics.serviceMonitor.enabled -}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "postgres-operator-go.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "postgres-operator-go.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "postgres-operator-go.selectorLabels" . | nindent 6 }}
+  endpoints:
+  - port: metrics
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+{{- end }}

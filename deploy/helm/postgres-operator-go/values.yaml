@@ -1,0 +1,70 @@
+# yaml-language-server: $schema=https://json.schemastore.org/helmfile.json
+
+replicaCount: 2
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: 123456789.dkr.ecr.us-east-1.amazonaws.com/postgres-operator-go
+  pullPolicy: IfNotPresent
+  tag: ""  # overridden by CI; defaults to Chart.appVersion
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  name: postgres-operator-go
+  annotations:
+    eks.amazonaws.com/role-arn: ""  # IRSA for S3 backup access
+
+leaderElection:
+  enabled: true
+
+metrics:
+  enabled: true
+  port: 8080
+  serviceMonitor:
+    enabled: false  # set true when Prometheus Operator is installed
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-operator-go
+          topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+nodeSelector: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+# Environment variables passed to the operator container.
+# DATABASE_SSLMODE controls the sslmode in the generated DATABASE_URL secret.
+# Use "disable" for clusters without Postgres TLS, "require" for production.
+env:
+  DATABASE_SSLMODE: "disable"
+
+# Set to true to install the PostgresDatabase CRD as part of the Helm release.
+# Set to false if you manage CRDs separately (e.g. via GitOps with server-side apply).
+installCRDs: true

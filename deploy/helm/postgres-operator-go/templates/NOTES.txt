@@ -1,0 +1,42 @@
+postgres-operator-go has been installed!
+
+Operator:
+  kubectl get deployment {{ include "postgres-operator-go.fullname" . }} -n {{ .Release.Namespace }}
+  kubectl logs -l app.kubernetes.io/name={{ include "postgres-operator-go.name" . }} -n {{ .Release.Namespace }} -f
+
+CRD:
+  kubectl get crd postgresdatabases.postgres.vibhordubey.com
+
+Create a database:
+  kubectl apply -f - <<EOF
+  apiVersion: postgres.vibhordubey.com/v1alpha1
+  kind: PostgresDatabase
+  metadata:
+    name: my-app-db
+    namespace: {{ .Release.Namespace }}
+  spec:
+    databaseName: my_app
+    storage:
+      size: 10Gi
+      storageClass: standard
+  EOF
+
+Watch provisioning:
+  kubectl get postgresdatabase -n {{ .Release.Namespace }} -w
+
+Get connection URL:
+  kubectl get secret my-app-db-credentials -n {{ .Release.Namespace }} \
+    -o jsonpath='{.data.DATABASE_URL}' | base64 -d
+
+{{- if .Values.metrics.enabled }}
+
+Metrics are exposed on port {{ .Values.metrics.port }} via the service:
+  {{ include "postgres-operator-go.fullname" . }}-metrics
+{{- end }}
+
+{{- if .Values.metrics.serviceMonitor.enabled }}
+A ServiceMonitor has been created for Prometheus scraping.
+{{- else }}
+To enable Prometheus scraping, set metrics.serviceMonitor.enabled=true
+(requires Prometheus Operator to be installed).
+{{- end }}

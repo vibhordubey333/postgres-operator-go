@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://json.schemastore.org/chart.json
+apiVersion: v2
+name: postgres-operator-go
+description: A Kubernetes operator for managing PostgreSQL databases
+type: application
+version: 0.1.0
+appVersion: "0.1.0"  # bumped automatically by release.yaml
+keywords:
+  - postgresql
+  - operator
+  - database
+maintainers:
+  - name: Vibhor Dubey
+    email: vibhordubey333@gmail.com
+    url: https://github.com/vibhordubey333
