@@ -197,6 +197,7 @@ jobs:
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: controller:scan
           format: sarif

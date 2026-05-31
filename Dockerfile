@@ -11,9 +11,7 @@ COPY go.mod go.mod
 COPY go.sum go.sum
 # Cache deps before building and copying source so that we don't need to re-download as much
 # and so that source changes don't invalidate our downloaded layer
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    go mod download
+RUN go mod download
 
 # Copy the go source
 COPY cmd/main.go cmd/main.go
@@ -22,10 +20,8 @@ COPY internal/ internal/
 COPY pkg/ pkg/
 
 # Build
-RUN --mount=type=cache,target=/root/.cache/go-build \
-    --mount=type=cache,target=/go/pkg/mod \
-    CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
-    go build -a \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} \
+    go build \
     -ldflags="-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT}" \
     -o manager cmd/main.go
 
