@@ -42,6 +42,7 @@ jobs:
         run: go mod verify
 
       - name: Check go.sum is tidy
+        if: github.actor != 'dependabot[bot]'
         run: |
           go mod tidy
           git diff --exit-code go.sum
