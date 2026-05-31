@@ -2,12 +2,13 @@ package main
 
 import (
 	"flag"
+	"os"
+
 	postgresv1alpha1 "github.com/vibhordubey333/postgres-operator-go/api/v1alpha1"
 	"github.com/vibhordubey333/postgres-operator-go/internal/controller"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
-	"os"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -30,7 +31,12 @@ func main() {
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "Metrics bind address")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "Health probe bind address")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false, "Enable leader election (set true in production)")
-	flag.StringVar(&leaderElectionNamespace, "leader-election-namespace", "", "Namespace for leader election (required when leader-elect=true)")
+	flag.StringVar(
+		&leaderElectionNamespace,
+		"leader-election-namespace",
+		"",
+		"Namespace for leader election (required when leader-elect=true)",
+	)
 	opts := zap.Options{Development: true}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()

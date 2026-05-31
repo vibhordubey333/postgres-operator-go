@@ -3,21 +3,21 @@ package controller
 import (
 	"context"
 	"fmt"
-	"k8s.io/apimachinery/pkg/api/meta"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"time"
+
+	postgresv1alpha1 "github.com/vibhordubey333/postgres-operator-go/api/v1alpha1"
+	"github.com/vibhordubey333/postgres-operator-go/pkg/postgres"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	postgresv1alpha1 "github.com/vibhordubey333/postgres-operator-go/api/v1alpha1"
-	"github.com/vibhordubey333/postgres-operator-go/pkg/postgres"
 )
 
 const (
