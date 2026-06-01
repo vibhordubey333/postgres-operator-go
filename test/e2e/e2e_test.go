@@ -211,7 +211,7 @@ var _ = Describe("Manager", Ordered, func() {
 				"--namespace", namespace,
 				"--image=curlimages/curl:7.78.0",
 				"--", "/bin/sh", "-c", fmt.Sprintf(
-					"curl -v -k -H 'Authorization: Bearer %s' https://%s.%s.svc.cluster.local:8443/metrics",
+					"curl -v -H 'Authorization: Bearer %s' http://%s.%s.svc.cluster.local:8443/metrics",
 					token, metricsServiceName, namespace))
 			_, err = utils.Run(cmd)
 			Expect(err).NotTo(HaveOccurred(), "Failed to create curl-metrics pod")
