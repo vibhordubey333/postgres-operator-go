@@ -231,10 +231,11 @@ For production, deploy to AWS EKS with Terraform. Terraform owns the AWS foundat
 - `AWS_ROLE_TO_ASSUME` configured as a GitHub Actions secret after `terraform/infra` creates the release role.
 - `AWS_DEPLOY_ROLE_TO_ASSUME` configured as a GitHub Actions secret after `terraform/infra` creates the deploy role.
 - `TF_STATE_BUCKET` configured as a GitHub Actions variable with the S3 backend bucket name.
+- Optional GitHub Actions variables `AWS_REGION` and `EKS_CLUSTER` for the deploy job. If unset, the workflow uses `us-east-1` and `pg-operator-prod`.
 
 ### Bootstrap Production Once
 
-Initialize and apply the AWS foundation from your local machine:
+Run the infra commands from the repository root on your local machine, where your AWS credentials are configured. This is a one-time production bootstrap that creates the EKS cluster, VPC, node groups, ECR repository, EBS CSI add-on, and GitHub OIDC IAM roles used by the release pipeline:
 
 ```sh
 terraform -chdir=terraform/infra init -backend-config=backend.hcl -reconfigure
@@ -253,7 +254,7 @@ Set `TF_STATE_BUCKET` in GitHub Actions variables to the same S3 bucket used by 
 
 ### Automatic Release Deployment
 
-After the bootstrap is complete, pushing a tag deploys the same immutable release to EKS automatically:
+After the bootstrap is complete and the workflow changes are pushed to `master`, create and push a `v*` tag from the repository root. Pushing the tag starts the release pipeline, and the `deploy-eks` job deploys the same immutable release to EKS through Terraform:
 
 ```sh
 git tag v0.1.0

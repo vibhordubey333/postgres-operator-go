@@ -179,8 +179,8 @@ jobs:
     env:
       TF_IN_AUTOMATION: true
       TF_INPUT: false
-      TF_VAR_aws_region: ${{ env.AWS_REGION }}
-      TF_VAR_cluster_name: ${{ env.EKS_CLUSTER }}
+      TF_VAR_aws_region: ${{ vars.AWS_REGION || 'us-east-1' }}
+      TF_VAR_cluster_name: ${{ vars.EKS_CLUSTER || 'pg-operator-prod' }}
       TF_VAR_release_version: ${{ github.ref_name }}
       TF_VAR_operator_chart: https://github.com/vibhordubey333/postgres-operator-go/releases/download/${{ github.ref_name }}/postgres-operator-go-${{ github.ref_name }}.tgz
     steps:
@@ -237,6 +237,6 @@ jobs:
 
       - name: Verify EKS rollout
         run: |
-          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.EKS_CLUSTER }}"
-          kubectl rollout status deployment/postgres-operator-postgres-operator-go -n "${{ env.OPERATOR_NAMESPACE }}" --timeout=5m
-          kubectl get pods -n "${{ env.OPERATOR_NAMESPACE }}"
+          aws eks update-kubeconfig --region "$TF_VAR_aws_region" --name "$TF_VAR_cluster_name"
+          kubectl rollout status deployment/postgres-operator-postgres-operator-go -n "$OPERATOR_NAMESPACE" --timeout=5m
+          kubectl get pods -n "$OPERATOR_NAMESPACE"
