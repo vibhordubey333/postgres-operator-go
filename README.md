@@ -1,7 +1,7 @@
 # postgres-operator-go
 
 [![CI](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml)
-[![Release](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml)
+[![Release](https://img.shields.io/github/v/release/vibhordubey333/postgres-operator-go)](https://github.com/vibhordubey333/postgres-operator-go/releases)
 
 **postgres-operator-go** is a lightweight, Go-based Kubernetes operator designed to automate the deployment, scaling, and lifecycle management of PostgreSQL instances within a Kubernetes cluster. By defining a declarative `PostgresDatabase` Custom Resource (CR), developers can easily provision self-healing PostgreSQL databases along with their corresponding Kubernetes StatefulSets, headless Services, and connection Secrets.
 
