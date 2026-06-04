@@ -3,10 +3,19 @@
 [![CI](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/ci.yml)
 [![Release](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml/badge.svg)](https://github.com/vibhordubey333/postgres-operator-go/actions/workflows/release.yml)
 
-// TODO(user): Add simple overview of use/purpose
+**postgres-operator-go** is a lightweight, Go-based Kubernetes operator designed to automate the deployment, scaling, and lifecycle management of PostgreSQL instances within a Kubernetes cluster. By defining a declarative `PostgresDatabase` Custom Resource (CR), developers can easily provision self-healing PostgreSQL databases along with their corresponding Kubernetes StatefulSets, headless Services, and connection Secrets.
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+
+Running stateful databases in Kubernetes can be challenging. This operator solves that by implementing operational best practices directly in Go using the `controller-runtime` and `Kubebuilder` frameworks. It continuously reconciles the desired state of a `PostgresDatabase` resource with the live cluster resources.
+
+### Architecture & Key Features
+
+*   **Automated Resource Provisioning**: Automatically generates and reconciles a `StatefulSet` running PostgreSQL, a headless `Service` for network routing, and a `Secret` containing generated database credentials (including the `DATABASE_URL`).
+*   **Flexible Configuration**: Configure database versions, replica counts (1-5), storage specs (size and StorageClass), and resource CPU/memory requests and limits directly via the Custom Resource Spec.
+*   **Secure Connection Management**: Supports environment-controlled database SSL modes (e.g., `require` or `disable`) when configuring connection strings, protecting data in transit.
+*   **Production Infrastructure Ready**: Includes production-grade Terraform configurations to spin up a fully-configured AWS EKS cluster, complete with private subnets, ECR repository, EBS CSI drivers, and dedicated memory-optimized node pools specifically tuned and tainted for running PostgreSQL workloads.
+*   **Status & Health Monitoring**: Provides real-time phase updates (`Provisioning`, `Ready`, `Failed`, `Deleting`) and detailed status conditions directly on the Custom Resource.
 
 ## Database SSL Mode
 
@@ -102,6 +111,115 @@ Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project
 kubectl apply -f https://raw.githubusercontent.com/<org>/postgres-operator-go/<tag or branch>/dist/install.yaml
 ```
 
+## Deploying Locally with Helm
+
+Use the local Helm chart at [`deploy/helm/postgres-operator-go`](deploy/helm/postgres-operator-go) to install the operator on a local Kubernetes cluster such as Kind or Minikube.
+
+### Prerequisites
+
+- Docker running locally.
+- Helm installed.
+- `kubectl` configured for your local cluster.
+- A local Kubernetes cluster, for example Kind or Minikube.
+
+### Install on Kind
+
+Build the controller image locally:
+
+```sh
+make docker-build IMG=postgres-operator-go:local
+```
+Find the cluster name
+```sh
+kind get clusters
+```
+
+Load the image into your Kind cluster:
+
+```sh
+kind load docker-image postgres-operator-go:local --name <cluster-name>
+```
+
+If you created the cluster with Kind's default name, use `--name kind`.
+
+Check whether the `PostgresDatabase` CRD already exists:
+
+```sh
+kubectl get crd postgresdatabases.postgres.vibhordubey.com
+```
+
+If the command returns `NotFound`, install the operator and let Helm create the CRD:
+
+```sh
+helm upgrade --install postgres-operator ./deploy/helm/postgres-operator-go \
+  --namespace postgres-operator-system \
+  --create-namespace \
+  --set replicaCount=1 \
+  --set image.repository=postgres-operator-go \
+  --set image.tag=local \
+  --set image.pullPolicy=IfNotPresent
+```
+
+If the CRD already exists because you previously ran `make install`, Kustomize, or another non-Helm install, keep the existing CRD and install only the operator resources:
+
+```sh
+helm upgrade --install postgres-operator ./deploy/helm/postgres-operator-go \
+  --namespace postgres-operator-system \
+  --create-namespace \
+  --set installCRDs=false \
+  --set replicaCount=1 \
+  --set image.repository=postgres-operator-go \
+  --set image.tag=local \
+  --set image.pullPolicy=IfNotPresent
+```
+
+If Helm reports that the CRD "exists and cannot be imported into the current release" because ownership metadata is missing, use the `installCRDs=false` command above. That error means the CRD is already present but was not created by this Helm release.
+
+### Minikube Alternative
+
+For Minikube, build the image directly inside Minikube's Docker environment before running the appropriate Helm install command for your CRD state:
+
+```sh
+eval $(minikube docker-env)
+make docker-build IMG=postgres-operator-go:local
+```
+
+### Verify the Local Install
+
+Wait for the operator deployment:
+
+```sh
+kubectl rollout status deployment/postgres-operator-postgres-operator-go -n postgres-operator-system
+kubectl get pods -n postgres-operator-system
+```
+
+Create a sample `PostgresDatabase`:
+
+```sh
+kubectl apply -f config/samples/postgres_v1alpha1_postgresdatabase.yaml
+kubectl get postgresdatabases
+```
+
+### Clean Up
+
+Delete the sample database resource:
+
+```sh
+kubectl delete -f config/samples/postgres_v1alpha1_postgresdatabase.yaml --ignore-not-found
+```
+
+Uninstall the Helm release:
+
+```sh
+helm uninstall postgres-operator -n postgres-operator-system --ignore-not-found
+```
+
+The chart marks the CRD with `helm.sh/resource-policy: keep`, so Helm keeps it after uninstall. Deleting the CRD removes all `PostgresDatabase` custom resources, so only run this on a disposable local cluster or when you intentionally want to reset the CRD:
+
+```sh
+kubectl delete crd postgresdatabases.postgres.vibhordubey.com
+```
+
 ## Deploying to AWS EKS
 
 Use the Helm chart published to GHCR (OCI) together with [`deploy/helm/values-eks-prod.yaml`](deploy/helm/values-eks-prod.yaml) for a production-oriented EKS install (GHCR image, IRSA-ready `ServiceAccount`, HA, `DATABASE_SSLMODE=require`, and optional `ServiceMonitor`).
@@ -152,7 +270,24 @@ spec:
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+We welcome contributions to `postgres-operator-go`! To get started:
+
+1. **Fork the Repository**: Create a personal fork and clone it.
+2. **Implement Changes**: Add tests for new features or bug fixes.
+3. **Format & Lint**: Ensure your code meets quality standards:
+   ```sh
+   make fmt
+   make vet
+   ```
+4. **Generate Manifests**: If you update the Custom Resource API schemas (`api/v1alpha1/*_types.go`) or controller RBAC annotations, run:
+   ```sh
+   make manifests
+   ```
+5. **Run Tests**: Make sure all unit and integration tests pass:
+   ```sh
+   make test
+   ```
+6. **Submit a PR**: Open a Pull Request with a clear description of your changes.
 
 **NOTE:** Run `make help` for more information on all potential `make` targets
 
@@ -173,4 +308,3 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-
