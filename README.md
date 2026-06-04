@@ -102,6 +102,55 @@ Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project
 kubectl apply -f https://raw.githubusercontent.com/<org>/postgres-operator-go/<tag or branch>/dist/install.yaml
 ```
 
+## Deploying to AWS EKS
+
+Use the Helm chart published to GHCR (OCI) together with [`deploy/helm/values-eks-prod.yaml`](deploy/helm/values-eks-prod.yaml) for a production-oriented EKS install (GHCR image, IRSA-ready `ServiceAccount`, HA, `DATABASE_SSLMODE=require`, and optional `ServiceMonitor`).
+
+### Prerequisites
+
+- An EKS cluster and `kubectl` configured for it.
+- [AWS EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) installed so you can use EBS-backed storage classes (e.g. `gp3`).
+- A Git tag / GitHub Release (e.g. `v0.1.0`) that has published the controller image and Helm chart to GHCR (see the Release workflow).
+- (Optional) [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) if you keep `metrics.serviceMonitor.enabled: true` in the values file.
+
+### IAM Roles for Service Accounts (IRSA)
+
+If the operator will call AWS APIs (for example S3 backups), create an IAM role trusted by the operator’s Kubernetes `ServiceAccount` and set its ARN in `deploy/helm/values-eks-prod.yaml` under `serviceAccount.annotations.eks.amazonaws.com/role-arn`. If you are not using IRSA yet, remove that annotation or set it to your real role ARN before applying.
+
+### Install with Helm (OCI chart from GHCR)
+
+From a checkout of this repository (so the values file path exists locally):
+
+```bash
+helm upgrade --install postgres-operator oci://ghcr.io/vibhordubey333/postgres-operator-go \
+  --version v0.1.0 \
+  --namespace postgres-operator-system \
+  --create-namespace \
+  -f deploy/helm/values-eks-prod.yaml \
+  --set image.tag=v0.1.0
+```
+
+Replace `v0.1.0` with the chart/app version you are deploying. You can instead set `image.tag` inside `deploy/helm/values-eks-prod.yaml` and omit `--set`.
+
+If the GHCR image is **private**, create a pull secret and reference it in `imagePullSecrets` in the same values file (see comments in that file).
+
+### Create a `PostgresDatabase` using `gp3`
+
+Ensure a `StorageClass` named `gp3` exists (often created when you install the EBS CSI driver add-on). Example:
+
+```yaml
+apiVersion: postgres.vibhordubey.com/v1alpha1
+kind: PostgresDatabase
+metadata:
+  name: prod-db
+  namespace: default
+spec:
+  databaseName: prod_app
+  storage:
+    size: 50Gi
+    storageClass: gp3
+```
+
 ## Contributing
 // TODO(user): Add detailed information on how you would like others to contribute to this project
 

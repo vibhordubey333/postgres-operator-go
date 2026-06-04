@@ -1,0 +1,79 @@
+# Production overrides for AWS EKS.
+# Use with: helm upgrade --install <release> ./deploy/helm/postgres-operator-go -f deploy/helm/values-eks-prod.yaml
+#   or with a published OCI chart + this file from a git checkout.
+#
+# Before install:
+# - Replace the IRSA role ARN below, or remove the annotation if you do not use IRSA yet.
+# - Set image.tag to your release (e.g. v0.1.0) or pass --set image.tag=... at install time.
+# - Ensure the EBS CSI driver and a gp3 StorageClass exist for PostgresDatabase PVCs.
+
+replicaCount: 2
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  repository: ghcr.io/vibhordubey333/postgres-operator-go
+  pullPolicy: IfNotPresent
+  # Set to your Git tag / digest (must match an image pushed by the Release workflow).
+  tag: ""
+
+imagePullSecrets: []
+# If the GHCR package is private, create a docker-registry secret and list it here, e.g.:
+# imagePullSecrets:
+#   - name: ghcr-credentials
+
+serviceAccount:
+  create: true
+  name: postgres-operator-go
+  annotations:
+    # Replace with your IAM role for IRSA (trust policy must allow this namespace + SA).
+    eks.amazonaws.com/role-arn: "arn:aws:iam::123456789012:role/postgres-operator-role"
+
+leaderElection:
+  enabled: true
+
+metrics:
+  enabled: true
+  port: 8080
+  # Requires Prometheus Operator CRDs in the cluster.
+  serviceMonitor:
+    enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres-operator-go
+          topologyKey: kubernetes.io/hostname
+
+tolerations: []
+
+nodeSelector: {}
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+env:
+  # Use require when Postgres in the cluster uses TLS; use disable only if you know Postgres has no TLS.
+  DATABASE_SSLMODE: "require"
+
+installCRDs: true
