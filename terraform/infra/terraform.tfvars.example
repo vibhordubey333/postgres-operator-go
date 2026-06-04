@@ -1,0 +1,21 @@
+allowed_cidrs = ["203.0.113.10/32"]
+
+# Add the IAM role/user ARNs that should administer the EKS cluster.
+admin_principal_arns = [
+  "arn:aws:iam::111122223333:role/platform-admin",
+]
+
+cluster_name = "pg-operator-prod"
+aws_region   = "us-east-1"
+environment  = "prod"
+
+github_repository = "vibhordubey333/postgres-operator-go"
+
+# Must match the bucket used by terraform/infra/backend.hcl and terraform/operator/backend.hcl.
+terraform_state_bucket_name = "REPLACE_WITH_TERRAFORM_STATE_BUCKET"
+
+# Must match the operator backend key used by the release workflow.
+operator_state_key = "postgres-operator-go/operator/terraform.tfstate"
+
+# Must match the GitHub Environment configured on the deploy-eks workflow job.
+github_actions_deploy_environment = "production"

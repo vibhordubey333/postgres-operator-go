@@ -8,6 +8,11 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/vibhordubey333/postgres-operator-go
+  AWS_REGION: us-east-1
+  EKS_CLUSTER: pg-operator-prod
+  ECR_REPOSITORY: postgres-operator-go
+  OPERATOR_NAMESPACE: postgres-operator-system
+  OPERATOR_TF_STATE_KEY: postgres-operator-go/operator/terraform.tfstate
 
 jobs:
   release:
@@ -16,6 +21,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: write
+      id-token: write
       packages: write
     steps:
       - name: Checkout
@@ -43,15 +49,34 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Validate AWS publish configuration
+        env:
+          AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        run: |
+          if [ -z "$AWS_ROLE_TO_ASSUME" ]; then
+            echo "::error::Set the AWS_ROLE_TO_ASSUME GitHub Actions secret to the Terraform-created release role ARN."
+            exit 1
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_NAME }}
+          images: |
+            ${{ env.IMAGE_NAME }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
+            type=raw,value=${{ github.ref_name }}
             type=sha
 
       - name: Build and push multi-arch image
@@ -116,7 +141,12 @@ jobs:
 
             ### Helm
             ```bash
-            helm install postgres-operator oci://ghcr.io/vibhordubey333/postgres-operator-go --version ${{ github.ref_name }}
+            helm upgrade --install postgres-operator \
+              https://github.com/vibhordubey333/postgres-operator-go/releases/download/${{ github.ref_name }}/postgres-operator-go-${{ github.ref_name }}.tgz \
+              --namespace postgres-operator-system \
+              --create-namespace \
+              --set image.repository=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }} \
+              --set image.tag=${{ github.ref_name }}
             ```
 
             ### Kubectl
@@ -126,9 +156,87 @@ jobs:
 
             ## Image
             ```
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.ref_name }}
             ${{ env.IMAGE_NAME }}:${{ github.ref_name }}
             ```
           files: |
             dist/*.tgz
             dist/install.yaml
           generate_release_notes: false
+
+  deploy-eks:
+    name: Deploy to EKS
+    needs: release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: eks-production
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TF_IN_AUTOMATION: true
+      TF_INPUT: false
+      TF_VAR_aws_region: ${{ env.AWS_REGION }}
+      TF_VAR_cluster_name: ${{ env.EKS_CLUSTER }}
+      TF_VAR_release_version: ${{ github.ref_name }}
+      TF_VAR_operator_chart: https://github.com/vibhordubey333/postgres-operator-go/releases/download/${{ github.ref_name }}/postgres-operator-go-${{ github.ref_name }}.tgz
+    steps:
+      - name: Validate deployment configuration
+        env:
+          AWS_DEPLOY_ROLE_TO_ASSUME: ${{ secrets.AWS_DEPLOY_ROLE_TO_ASSUME }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          missing=0
+          if [ -z "$AWS_DEPLOY_ROLE_TO_ASSUME" ]; then
+            echo "::error::Set the AWS_DEPLOY_ROLE_TO_ASSUME GitHub Actions secret to the Terraform-created deploy role ARN."
+            missing=1
+          fi
+          if [ -z "$TF_STATE_BUCKET" ]; then
+            echo "::error::Set the TF_STATE_BUCKET GitHub Actions variable to the S3 bucket that stores Terraform state."
+            missing=1
+          fi
+          exit "$missing"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.5
+
+      - name: Configure AWS deploy credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_TO_ASSUME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform init
+        env:
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+        run: |
+          terraform -chdir=terraform/operator init \
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="key=${{ env.OPERATOR_TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.AWS_REGION }}" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true" \
+            -reconfigure
+
+      - name: Terraform plan
+        run: terraform -chdir=terraform/operator plan -out=tfplan
+
+      - name: Terraform apply
+        run: terraform -chdir=terraform/operator apply -auto-approve tfplan
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Verify EKS rollout
+        run: |
+          aws eks update-kubeconfig --region "${{ env.AWS_REGION }}" --name "${{ env.EKS_CLUSTER }}"
+          kubectl rollout status deployment/postgres-operator-postgres-operator-go -n "${{ env.OPERATOR_NAMESPACE }}" --timeout=5m
+          kubectl get pods -n "${{ env.OPERATOR_NAMESPACE }}"

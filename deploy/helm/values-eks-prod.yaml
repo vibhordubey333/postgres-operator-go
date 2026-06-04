@@ -1,6 +1,6 @@
 # Production overrides for AWS EKS.
 # Use with: helm upgrade --install <release> ./deploy/helm/postgres-operator-go -f deploy/helm/values-eks-prod.yaml
-#   or with a published OCI chart + this file from a git checkout.
+#   or with a packaged chart downloaded from a GitHub Release.
 #
 # Before install:
 # - Replace the IRSA role ARN below, or remove the annotation if you do not use IRSA yet.

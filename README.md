@@ -222,51 +222,89 @@ kubectl delete crd postgresdatabases.postgres.vibhordubey.com
 
 ## Deploying to AWS EKS
 
-Use the Helm chart published to GHCR (OCI) together with [`deploy/helm/values-eks-prod.yaml`](deploy/helm/values-eks-prod.yaml) for a production-oriented EKS install (GHCR image, IRSA-ready `ServiceAccount`, HA, `DATABASE_SSLMODE=require`, and optional `ServiceMonitor`).
+For production, deploy to AWS EKS with Terraform. Terraform owns the AWS foundation in [`terraform/infra`](terraform/infra) and the operator Helm release in [`terraform/operator`](terraform/operator). See [`terraform/README.md`](terraform/README.md) for the full workflow.
 
 ### Prerequisites
 
-- An EKS cluster and `kubectl` configured for it.
-- [AWS EBS CSI driver](https://docs.aws.amazon.com/eks/latest/userguide/ebs-csi.html) installed so you can use EBS-backed storage classes (e.g. `gp3`).
-- A Git tag / GitHub Release (e.g. `v0.1.0`) that has published the controller image and Helm chart to GHCR (see the Release workflow).
-- (Optional) [Prometheus Operator](https://github.com/prometheus-operator/prometheus-operator) if you keep `metrics.serviceMonitor.enabled: true` in the values file.
+- Local AWS credentials with permission to create/update EKS, VPC, IAM, ECR, and Kubernetes resources.
+- An S3 backend bucket for Terraform state; copy and fill in `terraform/infra/backend.example.hcl` and `terraform/operator/backend.example.hcl`.
+- `AWS_ROLE_TO_ASSUME` configured as a GitHub Actions secret after `terraform/infra` creates the release role.
+- `AWS_DEPLOY_ROLE_TO_ASSUME` configured as a GitHub Actions secret after `terraform/infra` creates the deploy role.
+- `TF_STATE_BUCKET` configured as a GitHub Actions variable with the S3 backend bucket name.
 
-### IAM Roles for Service Accounts (IRSA)
+### Bootstrap Production Once
 
-If the operator will call AWS APIs (for example S3 backups), create an IAM role trusted by the operator’s Kubernetes `ServiceAccount` and set its ARN in `deploy/helm/values-eks-prod.yaml` under `serviceAccount.annotations.eks.amazonaws.com/role-arn`. If you are not using IRSA yet, remove that annotation or set it to your real role ARN before applying.
+Initialize and apply the AWS foundation from your local machine:
 
-### Install with Helm (OCI chart from GHCR)
-
-From a checkout of this repository (so the values file path exists locally):
-
-```bash
-helm upgrade --install postgres-operator oci://ghcr.io/vibhordubey333/postgres-operator-go \
-  --version v0.1.0 \
-  --namespace postgres-operator-system \
-  --create-namespace \
-  -f deploy/helm/values-eks-prod.yaml \
-  --set image.tag=v0.1.0
+```sh
+terraform -chdir=terraform/infra init -backend-config=backend.hcl -reconfigure
+terraform -chdir=terraform/infra plan
+terraform -chdir=terraform/infra apply
 ```
 
-Replace `v0.1.0` with the chart/app version you are deploying. You can instead set `image.tag` inside `deploy/helm/values-eks-prod.yaml` and omit `--set`.
+After apply, copy these outputs into GitHub Actions secrets:
 
-If the GHCR image is **private**, create a pull secret and reference it in `imagePullSecrets` in the same values file (see comments in that file).
+```sh
+terraform -chdir=terraform/infra output github_actions_release_role_arn
+terraform -chdir=terraform/infra output github_actions_deploy_role_arn
+```
+
+Set `TF_STATE_BUCKET` in GitHub Actions variables to the same S3 bucket used by your Terraform backend.
+
+### Automatic Release Deployment
+
+After the bootstrap is complete, pushing a tag deploys the same immutable release to EKS automatically:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release pipeline builds and pushes the image to ECR/GHCR, publishes the Helm chart to the GitHub Release, then the `deploy-eks` job runs `terraform -chdir=terraform/operator apply` with `TF_VAR_release_version` set to the tag.
+
+Because this setup uses GitHub-hosted runners, the EKS public API endpoint must be reachable from those runners. For stricter production networking, move the deploy job to CodeBuild in the VPC or a private self-hosted runner instead of widening EKS public endpoint access.
+
+For manual recovery or one-off redeploys, you can still run the operator root locally after setting the release version:
+
+```sh
+export TF_VAR_release_version=v0.1.0
+terraform -chdir=terraform/operator init -backend-config=backend.hcl -reconfigure
+terraform -chdir=terraform/operator plan
+terraform -chdir=terraform/operator apply
+```
+
+Set `manage_operator_crds=false` in `terraform/operator/terraform.tfvars` if the `PostgresDatabase` CRD already exists outside Helm. Set `enable_service_monitor=true` only after Prometheus Operator CRDs are installed.
+
+### Verify
+
+```sh
+aws eks update-kubeconfig --region "$AWS_REGION" --name pg-operator-prod
+kubectl rollout status deployment/postgres-operator-postgres-operator-go -n postgres-operator-system
+kubectl get pods -n postgres-operator-system
+kubectl get crd postgresdatabases.postgres.vibhordubey.com
+kubectl get storageclass gp3
+```
 
 ### Create a `PostgresDatabase` using `gp3`
 
-Ensure a `StorageClass` named `gp3` exists (often created when you install the EBS CSI driver add-on). Example:
+Create a small EKS-backed smoke test database only after the `gp3` storage class exists:
 
-```yaml
+```sh
+kubectl apply -f - <<EOF
 apiVersion: postgres.vibhordubey.com/v1alpha1
 kind: PostgresDatabase
 metadata:
-  name: prod-db
+  name: eks-smoke-db
   namespace: default
 spec:
-  databaseName: prod_app
+  databaseName: smoke_app
   storage:
-    size: 50Gi
+    size: 10Gi
     storageClass: gp3
+EOF
+
+kubectl get postgresdatabases
+kubectl get pvc
 ```
 
 ## Contributing

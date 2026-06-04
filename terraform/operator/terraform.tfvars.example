@@ -1,0 +1,14 @@
+release_version = "v0.1.0"
+
+cluster_name = "pg-operator-prod"
+aws_region   = "us-east-1"
+
+# Defaults to the ECR repository in the current AWS account and region:
+# <account-id>.dkr.ecr.<region>.amazonaws.com/postgres-operator-go
+# operator_image_repository = "111122223333.dkr.ecr.us-east-1.amazonaws.com/postgres-operator-go"
+
+manage_operator_crds   = true
+enable_service_monitor = false
+
+# Set only when the operator needs AWS API access.
+# operator_irsa_role_arn = "arn:aws:iam::111122223333:role/postgres-operator-role"
