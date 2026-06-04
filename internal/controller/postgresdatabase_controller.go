@@ -69,6 +69,9 @@ func (r *PostgresDatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Req
 		if err := r.setPhase(ctx, db, postgresv1alpha1.PhaseProvisioning); err != nil {
 			return ctrl.Result{}, err
 		}
+		// Return early. The status update will trigger a new reconcile loop with the updated ResourceVersion,
+		// avoiding conflict errors when updating status again later in the same reconcile pass.
+		return ctrl.Result{}, nil
 	}
 
 	// 5. Reconcile credentials Secret (create only if absent)
@@ -229,7 +232,10 @@ func (r *PostgresDatabaseReconciler) setReady(
 		Reason:             "Reconciled",
 		Message:            "PostgresDatabase is ready",
 	})
-	return ctrl.Result{RequeueAfter: requeueAfter}, r.Status().Update(ctx, db)
+	if err := r.Status().Update(ctx, db); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{RequeueAfter: requeueAfter}, nil
 }
 
 // setPhase updates the status phase field.

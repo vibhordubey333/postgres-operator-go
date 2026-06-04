@@ -111,18 +111,59 @@ Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project
 kubectl apply -f https://raw.githubusercontent.com/<org>/postgres-operator-go/<tag or branch>/dist/install.yaml
 ```
 
-## Deploying Locally with Helm
+## Running and Deploying Locally
 
-Use the local Helm chart at [`deploy/helm/postgres-operator-go`](deploy/helm/postgres-operator-go) to install the operator on a local Kubernetes cluster such as Kind or Minikube.
+For local development and testing, you can either run the operator on your host machine targeting a local Kubernetes cluster (fastest for development) or package and run it inside the cluster using Helm.
 
-### Prerequisites
+### Option 1: Running on Host (Fastest for Development)
+
+This method runs the operator controller as a local Go process on your host machine, connecting to whichever Kubernetes cluster is currently set in your active kubeconfig context (e.g. Kind or Minikube).
+
+#### 1. Install the CRD
+Install the `PostgresDatabase` Custom Resource Definition into your local cluster:
+```sh
+make install
+```
+
+#### 2. Run the Controller
+Run the operator process locally on your host. It will automatically watch resources across all namespaces:
+```sh
+make run
+```
+
+#### 3. Test and Verify
+In a separate terminal, deploy a sample database:
+```sh
+kubectl apply -f config/samples/postgres_v1alpha1_postgresdatabase.yaml
+```
+
+Verify that the operator is active and provisions the StatefulSet, credentials Secret, and Service:
+```sh
+kubectl get postgresdatabases
+kubectl get statefulset,svc,secret
+```
+
+#### 4. Clean Up
+Stop the local process with `Ctrl+C`, then clean up resources:
+```sh
+kubectl delete -f config/samples/postgres_v1alpha1_postgresdatabase.yaml
+make uninstall
+```
+
+---
+
+### Option 2: Deploying inside Cluster with Helm (Kind/Minikube)
+
+Use the local Helm chart at [`deploy/helm/postgres-operator-go`](deploy/helm/postgres-operator-go) to install the operator container directly on a local Kubernetes cluster such as Kind or Minikube.
+
+#### Prerequisites
 
 - Docker running locally.
 - Helm installed.
 - `kubectl` configured for your local cluster.
 - A local Kubernetes cluster, for example Kind or Minikube.
 
-### Install on Kind
+#### Install on Kind
 
 Build the controller image locally:
 
@@ -175,7 +216,7 @@ helm upgrade --install postgres-operator ./deploy/helm/postgres-operator-go \
 
 If Helm reports that the CRD "exists and cannot be imported into the current release" because ownership metadata is missing, use the `installCRDs=false` command above. That error means the CRD is already present but was not created by this Helm release.
 
-### Minikube Alternative
+#### Minikube Alternative
 
 For Minikube, build the image directly inside Minikube's Docker environment before running the appropriate Helm install command for your CRD state:
 
@@ -184,7 +225,7 @@ eval $(minikube docker-env)
 make docker-build IMG=postgres-operator-go:local
 ```
 
-### Verify the Local Install
+#### Verify the Local Install
 
 Wait for the operator deployment:
 
@@ -200,7 +241,7 @@ kubectl apply -f config/samples/postgres_v1alpha1_postgresdatabase.yaml
 kubectl get postgresdatabases
 ```
 
-### Clean Up
+#### Clean Up
 
 Delete the sample database resource:
 
